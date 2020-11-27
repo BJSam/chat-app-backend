@@ -87,9 +87,10 @@ server.listen(port, () => {
       //console.log(io.sockets.clients())
       io.to(socketid.id).emit("new_message",{to: req.query.to, from: req.query.from, msg:req.query.msg,date:req.query.date});
        res.send({
-         to: socketid.id,
          from: req.query.from,
          msg:req.query.msg,
+         to: req.query.to,
+         date:req.query.date
        })
       }
     }
