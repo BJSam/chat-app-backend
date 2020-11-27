@@ -3,6 +3,32 @@ const cors = require('cors')
 const app = express();
 app.use(cors())
 const server = require('http').createServer(app);
+const {MongoClient} = require('mongodb');
+//const client = new MongoClient('mongodb+srv://chinna:Chinna%40944@cluster0.11ctr.mongodb.net/retryWrites=true&w=majority');
+async function main(){
+  /**
+   * Connection URI. Update <username>, <password>, and <your-cluster-url> to reflect your cluster.
+   * See https://docs.mongodb.com/ecosystem/drivers/node/ for more details
+   */
+  const uri = "mongodb+srv://chinna:Chinna%40944@cluster0.11ctr.mongodb.net/test1?retryWrites=true&w=majority";
+
+
+  const db = new MongoClient(uri,  {useNewUrlParser: true, useUnifiedTopology: true});
+
+  try {
+      // Connect to the MongoDB cluster
+     await db.connect();
+    //  let x=  db.list
+    //   // Make the appropriate DB calls
+    // console.log(x);
+  } catch (e) {
+      console.error(e);
+  } finally {
+      await db.close();
+  }
+}
+
+main().catch(console.error);
 const io = require('socket.io')(server,{
     cors: {
         origin: "*",
