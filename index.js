@@ -3,32 +3,19 @@ const cors = require('cors')
 const app = express();
 app.use(cors())
 const server = require('http').createServer(app);
-const {MongoClient} = require('mongodb');
-//const client = new MongoClient('mongodb+srv://chinna:Chinna%40944@cluster0.11ctr.mongodb.net/retryWrites=true&w=majority');
-async function main(){
-  /**
-   * Connection URI. Update <username>, <password>, and <your-cluster-url> to reflect your cluster.
-   * See https://docs.mongodb.com/ecosystem/drivers/node/ for more details
-   */
-  const uri = "mongodb+srv://chinna:Chinna%40944@cluster0.11ctr.mongodb.net/test1?retryWrites=true&w=majority";
+var admin = require("firebase-admin");
 
+var serviceAccount = require("./service-account-file.json");
+const { Hash } = require('crypto');
+const { compileFunction } = require('vm');
+const { promises } = require('fs');
 
-  const db = new MongoClient(uri,  {useNewUrlParser: true, useUnifiedTopology: true});
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: "https://notemakingangular.firebaseio.com"
+});
+const db = admin.firestore();
 
-  try {
-      // Connect to the MongoDB cluster
-     await db.connect();
-    //  let x=  db.list
-    //   // Make the appropriate DB calls
-    // console.log(x);
-  } catch (e) {
-      console.error(e);
-  } finally {
-      await db.close();
-  }
-}
-
-main().catch(console.error);
 const io = require('socket.io')(server,{
     cors: {
         origin: "*",
@@ -42,26 +29,24 @@ server.listen(port, () => {
   });
 
    io.on('connection',async socket => {
-    console.log(socket.id);
+    //console.log(socket.id);
     await setUser(socket.id,socket.handshake.query.userName);
     
-    socket.emit("getSomeData",{data: "some random data"});
-    io.on('m',(data)=>{console.log(data)});
   });
   //console.log(io.engine)
   setUser =(id,user)=>{    
     newUser = false;
-    console.log(id+" ||| "+user+" ||| "+newUser) 
+    //console.log(id+" ||| "+user+" ||| "+newUser) 
     if(users.length ===0){
       users = [...users,{id:id, user:user, msg:'h1',newMsg:5,imgUrl: '../../assets/f3.jpg',}];
     }
     else{
       if(!newUser){
         users.forEach((dta,index,array) => {
-          console.log(dta)
+          //console.log(dta)
           if(dta.user === user){
               dta.id = id;
-              console.log("||| "+newUser);
+              //console.log("||| "+newUser);
               return
           }else newUser = true;
           if(index === array.length -1 && newUser){           
@@ -111,6 +96,31 @@ server.listen(port, () => {
       else{
      // var socket1 = io.of("/").connected[socketid];
       //console.log(io.sockets.clients())
+      const snapshot = await db.collection(req.query.from).doc(req.query.to).get();
+   
+    if(snapshot.data()){
+     // console.log(snapshot.data())
+      await db.collection(req.query.from).doc(req.query.to).update({
+        messages:[...snapshot.data().messages,  {
+          from: req.query.from,
+          msg:req.query.msg,
+          to: req.query.to,
+          date:req.query.date
+            }]
+      })
+    }
+    else{
+      await db.collection(req.query.from).doc(req.query.to).set({
+        messages:[
+          {
+        from: req.query.from,
+        msg:req.query.msg,
+        to: req.query.to,
+        date:req.query.date
+          }
+        ]
+      })
+    }
       io.to(socketid.id).emit("new_message",{to: req.query.to, from: req.query.from, msg:req.query.msg,date:req.query.date});
        res.send({
          from: req.query.from,
@@ -123,4 +133,54 @@ server.listen(port, () => {
     else{
       res.send({error:"wrong params"})
     }
-  })
+  });
+  app.get('/getusersandoldchats/:id', (req,res)=>{    
+    oldmsgg ={};
+    if(req.params.id){
+      db.collection(req.params.id).get().then(snapshot=>{
+        if(snapshot.size > 0){          
+        primisses=[];
+        // Promise.all(
+        //   snapshot.forEach((d)=>{
+        //     db.collection(d.id).doc(req.params.id).get().then(
+        //       async dt=>{  
+        //        oldmsgg[d.id] = [...dt.data().messages,...d.data().messages]    
+        //         return oldmsgg     
+        //        }          
+        //      ) 
+        //   })
+        // ).then(val=>{
+        //   console.log(val)
+        // })
+          snapshot.forEach( (d)=>{
+          primisses.push(
+            db.collection(d.id).doc(req.params.id).get().then(
+           async dt=>{  
+            oldmsgg[d.id] = [...dt.data().messages,...d.data().messages]    
+             return oldmsgg     
+            }          
+          ) 
+          )
+          }); 
+        // console.log(primisses)     
+          Promise.all(primisses).then(val=>{
+            //console.log(val[0])
+            sortedmsg={};
+            for (const [key, value] of Object.entries(val[0])) {
+             // console.log(`${key}: ${value}`);
+              value.sort((a,b)=>{return b.date - a.date})
+              sortedmsg[key]=value;
+            }
+           // console.log(sortedmsg);
+            res.send(sortedmsg)
+          })                              
+        }
+        else{
+          res.send(null)
+        }
+      })
+    }
+    else{
+      res.send({error:"wrong path"});
+    }
+  });
