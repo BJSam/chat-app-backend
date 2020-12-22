@@ -31,7 +31,21 @@ server.listen(port, () => {
    io.on('connection',async socket => {
     //console.log(socket.id);
     await setUser(socket.id,socket.handshake.query.userName);
-    
+    socket.on('disconnect', async (reason) => {
+      // if (reason === 'io server disconnect') {
+      //   // the disconnection was initiated by the server, you need to reconnect manually
+      //   socket.connect();
+      // }
+      // // else the socket will automatically try to reconnect
+     await users.splice(users.findIndex((i)=>{
+        return i.id === socket.id;
+    }), 1);
+    io.emit('users', users);
+      // console.log("disconnected");
+      // console.log(users);
+      console.log(reason);
+    });    
+  io.emit('users', users);
   });
   //console.log(io.engine)
   setUser =(id,user)=>{    
